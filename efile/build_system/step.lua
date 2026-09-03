@@ -5,10 +5,14 @@
 ---@field dependencies Dependency[]
 ---@field actions      Action[]
 ---@field prebuild     Action[]
+---@field options      Options
 local Step = {}
 
 ---@alias Command string
 ---@alias Script fun(): string?
+
+---@class Options
+---@field always_run boolean
 
 ---@alias Action Command|Script
 
@@ -17,14 +21,18 @@ local Step = {}
 
 ---@alias Dependency Complex|string
 
----@param name         string
+---@param name    string
+---@param options Options?
 ---@return Step
-function Step.init(name)
+function Step.init(name, options)
     local obj = {
         name = name,
         dependencies = { },
         actions = { },
         prebuild = { },
+        options = options or {
+            always_run = false
+        }
     }
     setmetatable(obj, { __index = Step })
     return obj
