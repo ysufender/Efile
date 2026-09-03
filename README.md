@@ -8,21 +8,23 @@ It has the similar structure of a TOML file, and the feel of a Lua script, since
 Below is the stripped down version of the build script of Efile itself:
 
 ```lua
-local Efile = require "src.efile"
-
 local project = Efile.Project
     .init("Efile")
 
     :step(Efile.Step
         .init("bundle")
-        :action("mkdir -p build")
+        :dependOn({ file = "build.lua" })
+        :dependOn({ file = "src/efile.lua" })
+        :dependOn({ file = "src/build_system/project.lua" })
+        :dependOn({ file = "src/build_system/step.lua" })
         :action(AMALG..AMALGFLAGS)
         :action(to_header))
 
     :step(Efile.Step
         .init("build")
+        :dependOn({ file = "src/efile.c" })
         :dependOn("bundle")
-        :action(CC..CFLAGS.."src/efile.c -o build/efile -llua -lm -ldl"))
+        :action(CC..CFLAGS.."src/efile.c -o build/efile -llua5.4 -lm -ldl"))
 
     :step(Efile.Step
         .init("install")
@@ -46,8 +48,7 @@ local project = Efile.Project
         :action("rm -f efile efile_bundle.lua efile_bundle.h"))
 
 local result = Efile.Project.build(project, arg[1] or "build") or "Success"
-print(result)
-```
+print(result)```
 
 As you can see, you can create and configure your build files in an (almost) declarative way.
 
