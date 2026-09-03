@@ -183,6 +183,29 @@ Oh no, an error!
 Build failed.
 ```
 
+#### Adding Prebuild Actions To Steps
+
+Sometimes you might want to execute some actions before the dependencies are called.
+For that reason, you can add prebuild actions to steps like:
+
+```lua
+local project = Efile.Project
+    .init("First_Project")
+
+    :step(Efile.Step
+        .init("build")
+        :dependOn("some_other_step")
+        :pre("echo This Will Execute Before the Dependencies")
+        :action("echo Hello World")
+        :action(function()
+            print("I am an action as well.")
+        end))
+
+    :step(Efile.Step
+        .init("some_other_step")
+        :action("echo This is the dependency"))
+```
+
 #### Adding File Dependencies To Steps
 
 A proper Efile should not do extra work when it doesn't have to do. For example if the build script has not
