@@ -66,10 +66,11 @@ local function get_mtime(path)
     return mtime
 end
 
+---@param subpath string
+---@return boolean
 local function is_modified(subpath)
     local cache_path = "build/.cache/" .. subpath
     local current_mtime = get_mtime(subpath)
-    print(">> is_modified: " .. subpath .. " mtime=" .. tostring(current_mtime))
 
     if not current_mtime then
         os.execute('mkdir -p "' .. subpath:match("^(.*)/[^/]+$") .. '"')
@@ -84,13 +85,11 @@ local function is_modified(subpath)
         if not out then return true end
         out:write(tostring(current_mtime))
         out:close()
-        print(">> " .. subpath .. ": no cache, returning true")
         return true
     end
 
     local cached_mtime = tonumber(f:read("*a"))
     f:close()
-    print(">> " .. subpath .. ": cached=" .. tostring(cached_mtime) .. " current=" .. tostring(current_mtime) .. " modified=" .. tostring(current_mtime > cached_mtime))
 
     if current_mtime > cached_mtime then
         local out = io.open(cache_path, "w")
@@ -103,22 +102,25 @@ local function is_modified(subpath)
     return false
 end
 
-function Project:resolve(target, accumulator, to_build)
+---@param target string
+---@param to_build string[]
+---@param accumulator Map<string, string>?
+---@return string?
+function Project:resolve(target, to_build, accumulator)
     accumulator = accumulator or { }
-    to_build = to_build or { }
 
     local step = self.steps[target]
 
     if accumulator[target] then return "Target '"..target.."' depends on itself." end
     if step == nil then return "Unknown step '"..target.."'." end
 
-    local will_build, err = false, nil
+    local will_build = false
     accumulator[target] = target
 
     for _, dependency in ipairs(step.dependencies) do
         if type(dependency) == "string" then
             local count = #to_build
-            err = self:resolve(dependency, accumulator, to_build)
+            local err = self:resolve(dependency, to_build, accumulator)
             if err then return err.."\n....Required from '"..target.."'" end
             if count ~= #to_build then
                 will_build = true
@@ -129,8 +131,6 @@ function Project:resolve(target, accumulator, to_build)
             end
         end
     end
-
-    print(">> resolve: " .. target .. " will_build=" .. tostring(will_build))
 
     if will_build then
         ---@cast to_build table
