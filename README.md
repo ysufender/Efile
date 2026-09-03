@@ -48,7 +48,8 @@ local project = Efile.Project
         :action("rm -f efile efile_bundle.lua efile_bundle.h"))
 
 local result = Efile.Project.build(project, arg[1] or "build") or "Success"
-print(result)```
+print(result)
+```
 
 As you can see, you can create and configure your build files in an (almost) declarative way.
 
