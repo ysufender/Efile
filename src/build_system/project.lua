@@ -23,7 +23,7 @@ end
 ---@param step   Step
 function Project.step(self, step)
     if type(self) == "string" then
-        return self
+        return self.."\n....While adding step '"..step.name.."'"
     else
         if self.steps[step.name] then
             return "Duplicate step '"..step.name.."'"
@@ -39,7 +39,7 @@ end
 ---@return string?
 function Project.build(self, target)
     if type(self) == "string" then
-        return self
+        return self.."\n\nBuild failed."
     end
 
     if next(self.steps) == nil then return "No steps to run" end
