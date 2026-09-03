@@ -51,6 +51,7 @@ function Step:pre(action)
     return self
 end
 
+---@nodiscard
 ---@return string?
 function Step:build()
     for _, prebuild in ipairs(self.prebuild) do
@@ -65,6 +66,7 @@ function Step:build()
 end
 
 ---@private
+---@nodiscard
 ---@param action Action
 ---@return string?
 function Step:execute_action(action)
@@ -83,6 +85,7 @@ function Step:execute_action(action)
 end
 
 ---@private
+---@nodiscard
 ---@param command string
 ---@return string?
 function Step.exec(command)

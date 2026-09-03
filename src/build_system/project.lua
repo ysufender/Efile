@@ -21,8 +21,10 @@ function Project.init(name)
     return obj
 end
 
+---@nodiscard
 ---@param self   string|Project
 ---@param step   Step
+---@return string|Project
 function Project.step(self, step)
     if type(self) == "string" then
         return self.."\n....While adding step '"..step.name.."'"
@@ -36,6 +38,7 @@ function Project.step(self, step)
     end
 end
 
+---@nodiscard
 ---@param self string|Project
 ---@param target string
 ---@return string?
@@ -56,6 +59,7 @@ function Project.build(self, target)
     end
 end
 
+---@nodiscard
 ---@param path string
 ---@return integer?
 local function get_mtime(path)
@@ -66,6 +70,7 @@ local function get_mtime(path)
     return mtime
 end
 
+---@nodiscard
 ---@param subpath string
 ---@return boolean
 local function is_modified(subpath)
@@ -102,6 +107,7 @@ local function is_modified(subpath)
     return false
 end
 
+---@nodiscard
 ---@param target string
 ---@param to_build string[]
 ---@param accumulator Map<string, string>?
