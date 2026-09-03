@@ -1,25 +1,5 @@
 do
 local _ENV = _ENV
-package.preload[ "src.build_system.args" ] = function( ... ) local arg = _G.arg;
----@class Map<K, V>: { [K]: V }
-
----@class Args
----@field args Map<string, any>
-local Args = {}
-
----@generic T
----@param name string
----@return T
-function Args:get(name)
-    return self.args[name]
-end
-
-return Args
-end
-end
-
-do
-local _ENV = _ENV
 package.preload[ "src.build_system.project" ] = function( ... ) local arg = _G.arg;
 ---@module "src.step"
 
@@ -33,6 +13,8 @@ local Project = { }
 ---@param name  string
 ---@return Project
 function Project.init(name)
+    os.execute("mkdir -p build/.cache/")
+
     local obj = {
         name = name,
         steps = { },
@@ -68,34 +50,96 @@ function Project.build(self, target)
     if next(self.steps) == nil then return "No steps to run" end
     if self.steps[target] == nil then return "Unknown step" end
 
-    local err = self:resolve(target)
+    local to_build = { }
+    local err = self:resolve(target, to_build)
     if err then return err end
-    return self.steps[target]:build(self)
+    for _, step in ipairs(to_build or { }) do
+        err = self.steps[step]:build()
+        if err then return err end
+    end
+end
+
+---@param path string
+---@return integer?
+local function get_mtime(path)
+    local f = io.popen('stat -c "%Y" "' .. path .. '"')
+    if not f then return nil end
+    local mtime = tonumber(f:read("*a"))
+    f:close()
+    return mtime
+end
+
+local function is_modified(subpath)
+    local cache_path = "build/.cache/" .. subpath
+
+    local current_mtime = get_mtime(subpath)
+
+    if not current_mtime then
+        -- Source file doesn't exist, create it and return true
+        os.execute('mkdir -p "' .. subpath:match("^(.*)/[^/]+$") .. '"')
+        io.open(subpath, "w"):close()
+        current_mtime = get_mtime(subpath)
+    end
+
+    local f = io.open(cache_path, "r")
+    if not f then
+        os.execute('mkdir -p "' .. cache_path:match("^(.*)/[^/]+$") .. '"')
+        local out = io.open(cache_path, "w")
+        if not out then return true end
+        out:write(tostring(current_mtime))
+        out:close()
+        return true
+    end
+
+    local cached_mtime = tonumber(f:read("*a"))
+    f:close()
+
+    if current_mtime > cached_mtime then
+        local out = io.open(cache_path, "w")
+        if not out then return true end
+        out:write(tostring(current_mtime))
+        out:close()
+        return true
+    end
+
+    return false
 end
 
 ---@private
 ---@param target      string
+---@param to_build    string[]
 ---@param accumulator Map<string, string>?
 ---@return string?
-function Project:resolve(target, accumulator)
+function Project:resolve(target, to_build, accumulator)
     accumulator = accumulator or { }
-
-    if accumulator[target] then
-        return "Target '"..target.."' depends on itself."
-    end
 
     local step = self.steps[target];
 
-    if step == nil then
-        return "Unknown step '"..target.."'."
-    end
+    if accumulator[target] then return "Target '"..target.."' depends on itself." end
+    if step == nil then return "Unknown step '"..target.."'." end
+
+    local will_build, err = false, nil
+    accumulator[target] = target
 
     for _, dependency in ipairs(step.dependencies) do
         if type(dependency) == "string" then
-            accumulator[target] = target
-            local err = self:resolve(dependency, accumulator)
+            local count = #to_build
+            err = self:resolve(dependency, accumulator, to_build)
             if err then return err.."\n....Required from '"..target.."'" end
+
+            if count ~= #to_build then
+                will_build = true
+            end
+        else
+            if is_modified(dependency.file) then
+                will_build = true
+            end
         end
+    end
+
+    if will_build then
+        ---@cast to_build table
+        table.insert(to_build, target)
     end
 end
 
@@ -112,6 +156,7 @@ package.preload[ "src.build_system.step" ] = function( ... ) local arg = _G.arg;
 ---@field name         string
 ---@field dependencies Dependency[]
 ---@field actions      Action[]
+---@field prebuild     Action[]
 local Step = {}
 
 ---@alias Command string
@@ -119,7 +164,8 @@ local Step = {}
 
 ---@alias Action Command|Script
 
----@alias Complex fun(project: Project):string?
+---@class Complex
+---@field file string
 
 ---@alias Dependency Complex|string
 
@@ -130,15 +176,16 @@ function Step.init(name)
         name = name,
         dependencies = { },
         actions = { },
+        prebuild = { },
     }
     setmetatable(obj, { __index = Step })
     return obj
 end
 
----@param name string
+---@param dependency Dependency
 ---@return Step
-function Step:dependOn(name)
-    table.insert(self.dependencies, name)
+function Step:dependOn(dependency)
+    table.insert(self.dependencies, dependency)
     return self
 end
 
@@ -149,37 +196,41 @@ function Step:action(action)
     return self
 end
 
----@param project Project
+---@param action Action
+---@return Step
+function Step:pre(action)
+    table.insert(self.prebuild, action)
+    return self
+end
+
 ---@return string?
-function Step:build(project)
-    for _, dependency in ipairs(self.dependencies) do
-        ---@type string?
-        local err
-
-        if type(dependency) == "string" then
-            err = project:build(dependency)
-        else
-            err = dependency(project)
-        end
-
-        if err then
-            return err.."\n....Required from '"..self.name.."'"
-        end
+function Step:build()
+    for _, prebuild in ipairs(self.prebuild) do
+        local err = self:execute_action(prebuild)
+        if err then return err end
     end
 
     for _, action in ipairs(self.actions) do
-        ---@type string?
-        local err
+        local err = self:execute_action(action)
+        if err then return err end
+    end
+end
 
-        if type(action) == "string" then
-            err = self.exec(action)
-        else
-            err = action()
-        end
+---@private
+---@param action Action
+---@return string?
+function Step:execute_action(action)
+    ---@type string?
+    local err
 
-        if err then
-            return err.."\n....Required from '"..self.name.."'"
-        end
+    if type(action) == "string" then
+        err = self.exec(action)
+    else
+        err = action()
+    end
+
+    if err then
+        return err.."\n....Required from '"..self.name.."'"
     end
 end
 

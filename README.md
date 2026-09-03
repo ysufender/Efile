@@ -1,5 +1,7 @@
 # Efile: Easy Makefile
 
+> Note: EFILE IS NOT CROSSPLATFORM, IT DEPENDS ON UNIX SHELL UTILITIES
+
 Efile is a small alternative to Makefiles, written almost entirely in lua and a tiny bit of C.
 It has the similar structure of a TOML file, and the feel of a Lua script, since it is plain lua.
 

@@ -4,6 +4,7 @@
 ---@field name         string
 ---@field dependencies Dependency[]
 ---@field actions      Action[]
+---@field prebuild     Action[]
 local Step = {}
 
 ---@alias Command string
@@ -11,7 +12,8 @@ local Step = {}
 
 ---@alias Action Command|Script
 
----@alias Complex fun(project: Project):string?
+---@class Complex
+---@field file string
 
 ---@alias Dependency Complex|string
 
@@ -22,15 +24,16 @@ function Step.init(name)
         name = name,
         dependencies = { },
         actions = { },
+        prebuild = { },
     }
     setmetatable(obj, { __index = Step })
     return obj
 end
 
----@param name string
+---@param dependency Dependency
 ---@return Step
-function Step:dependOn(name)
-    table.insert(self.dependencies, name)
+function Step:dependOn(dependency)
+    table.insert(self.dependencies, dependency)
     return self
 end
 
@@ -41,37 +44,41 @@ function Step:action(action)
     return self
 end
 
----@param project Project
+---@param action Action
+---@return Step
+function Step:pre(action)
+    table.insert(self.prebuild, action)
+    return self
+end
+
 ---@return string?
-function Step:build(project)
-    for _, dependency in ipairs(self.dependencies) do
-        ---@type string?
-        local err
-
-        if type(dependency) == "string" then
-            err = project:build(dependency)
-        else
-            err = dependency(project)
-        end
-
-        if err then
-            return err.."\n....Required from '"..self.name.."'"
-        end
+function Step:build()
+    for _, prebuild in ipairs(self.prebuild) do
+        local err = self:execute_action(prebuild)
+        if err then return err end
     end
 
     for _, action in ipairs(self.actions) do
-        ---@type string?
-        local err
+        local err = self:execute_action(action)
+        if err then return err end
+    end
+end
 
-        if type(action) == "string" then
-            err = self.exec(action)
-        else
-            err = action()
-        end
+---@private
+---@param action Action
+---@return string?
+function Step:execute_action(action)
+    ---@type string?
+    local err
 
-        if err then
-            return err.."\n....Required from '"..self.name.."'"
-        end
+    if type(action) == "string" then
+        err = self.exec(action)
+    else
+        err = action()
+    end
+
+    if err then
+        return err.."\n....Required from '"..self.name.."'"
     end
 end
 
