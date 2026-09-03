@@ -1,12 +1,12 @@
-local Efile = require "src.efile"
+local Efile = require "efile.efile"
 
 local AMALG      = "amalg.lua "
 local AMALGFLAGS = "-o "
                    .."build/efile_bundle.lua "
                    .."-s "
-                    .."src/efile.lua "
-                    .."src.build_system.project "
-                    .."src.build_system.step "
+                    .."efile/efile.lua "
+                    .."efile.build_system.project "
+                    .."efile.build_system.step "
 
 local CC     = "gcc "
 local CFLAGS = "-I/usr/include/lua5.4 "
@@ -38,18 +38,18 @@ local project = Efile.Project
     :step(Efile.Step
         .init("bundle")
         :dependOn({ file = "build.lua" })
-        :dependOn({ file = "src/efile.lua" })
-        :dependOn({ file = "src/build_system/project.lua" })
-        :dependOn({ file = "src/build_system/step.lua" })
+        :dependOn({ file = "efile/efile.lua" })
+        :dependOn({ file = "efile/build_system/project.lua" })
+        :dependOn({ file = "efile/build_system/step.lua" })
         :action(AMALG..AMALGFLAGS)
         :action(to_header))
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "src/efile.c" })
+        :dependOn({ file = "efile/efile.c" })
         :dependOn("bundle")
-        --:action(CC..CFLAGS.."src/efile.c -o build/efile -llua5.4 -lm -ldl"))
-        :action(CC..CFLAGS.."src/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
+        --:action(CC..CFLAGS.."efile/efile.c -o build/efile -llua5.4 -lm -ldl"))
+        :action(CC..CFLAGS.."efile/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
 
     :step(Efile.Step
         .init("install")
@@ -70,7 +70,7 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("clean")
-        :action("rm -f efile efile_bundle.lua efile_bundle.h"))
+        :action("rm -rf build"))
 
 local result = Efile.Project.build(project, arg[1] or "build") or "Success"
 print(result)

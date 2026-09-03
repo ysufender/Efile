@@ -1,4 +1,4 @@
----@module "src.project"
+---@module "efile.project"
 
 ---@class Step
 ---@field name         string

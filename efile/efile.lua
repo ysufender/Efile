@@ -1,5 +1,5 @@
-local Project = require "src.build_system.project"
-local Step = require "src.build_system.step"
+local Project = require "efile.build_system.project"
+local Step = require "efile.build_system.step"
 
 ---@class Efile
 ---@field Project Project
