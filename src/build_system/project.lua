@@ -45,14 +45,14 @@ function Project.build(self, target)
     end
 
     if next(self.steps) == nil then return "No steps to run" end
-    if self.steps[target] == nil then return "Unknown step" end
+    if self.steps[target] == nil then return "Unknown step '"..target.."'" end
 
     local to_build = { }
     local err = self:resolve(target, to_build)
-    if err then return err end
+    if err then return err.."\nBuild failed." end
     for _, step in ipairs(to_build or { }) do
         err = self.steps[step]:build()
-        if err then return err end
+        if err then return err.."\nBuild failed." end
     end
 end
 
@@ -114,7 +114,7 @@ function Project:resolve(target, to_build, accumulator)
     if accumulator[target] then return "Target '"..target.."' depends on itself." end
     if step == nil then return "Unknown step '"..target.."'." end
 
-    local will_build = false
+    local will_build = #step.dependencies == 0
     accumulator[target] = target
 
     for _, dependency in ipairs(step.dependencies) do
