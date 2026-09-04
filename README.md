@@ -197,7 +197,7 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("build")
-        :dependOn("some_other_step")
+        :dependOnStep("some_other_step")
         :pre("echo This Will Execute Before the Dependencies")
         :action("echo Hello World")
         :action(function()
