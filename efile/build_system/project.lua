@@ -124,9 +124,11 @@ end
 ---@param target string
 ---@param to_build string[]
 ---@param accumulator Map<string, string>?
+---@param visited Map<string, boolean>
 ---@return string?
-function Project:resolve(target, to_build, accumulator)
+function Project:resolve(target, to_build, accumulator, visited)
     accumulator = accumulator or { }
+    visited = visited or { }
 
     local step = self.steps[target]
 
@@ -139,7 +141,7 @@ function Project:resolve(target, to_build, accumulator)
     for _, dependency in ipairs(step.dependencies) do
         if type(dependency) == "string" then
             local count = #to_build
-            local err = self:resolve(dependency, to_build, accumulator)
+            local err = self:resolve(dependency, to_build, accumulator, visited)
             if err then return err.."\n....Required from '"..target.."'" end
             if count ~= #to_build then
                 will_build = true
@@ -151,11 +153,12 @@ function Project:resolve(target, to_build, accumulator)
         end
     end
 
-    if will_build then
-        ---@cast to_build table
+    if will_build and not visited[target] then
         table.insert(to_build, target)
     end
 
+    visited[target] = true
     accumulator[target] = nil
 end
+
 return Project
