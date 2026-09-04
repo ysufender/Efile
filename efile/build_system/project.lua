@@ -66,6 +66,14 @@ function Project.build(self, target)
     local to_build = { }
     local err = self:resolve(target, to_build)
     if err then return err.."\nBuild failed." end
+
+    if to_build then
+        for i = 1, #to_build do
+            err = self.steps[to_build[i]]:prebuild()
+            if err then return err.."\nBuild failed." end
+        end
+    end
+
     for _, step in ipairs(to_build or { }) do
         err = self.steps[step]:build()
         if err then return err.."\nBuild failed." end
@@ -124,7 +132,7 @@ end
 ---@param target string
 ---@param to_build string[]
 ---@param accumulator Map<string, string>?
----@param visited Map<string, boolean>
+---@param visited Map<string, boolean>?
 ---@return string?
 function Project:resolve(target, to_build, accumulator, visited)
     accumulator = accumulator or { }

@@ -50,8 +50,8 @@ local project = Efile.Project
         .init("build")
         :dependOnFile("efile/efile.c")
         :dependOnStep("bundle")
-        --:action(CC..CFLAGS.."efile/efile.c -o build/efile -l\"lua5.4\" -lm -ldl"))
-        :action(CC..CFLAGS.."efile/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
+        :action(CC..CFLAGS.."efile/efile.c -o build/efile -l\"lua5.4\" -lm -ldl"))
+        -- :action(CC..CFLAGS.."efile/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
 
     :step(Efile.Step
         .init("install")

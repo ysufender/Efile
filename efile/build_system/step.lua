@@ -4,7 +4,7 @@
 ---@field name         string
 ---@field dependencies Dependency[]
 ---@field actions      Action[]
----@field prebuild     Action[]
+---@field _prebuild     Action[]
 ---@field options      Options
 local Step = {}
 
@@ -30,7 +30,7 @@ function Step.init(name, options)
         name = name,
         dependencies = { },
         actions = { },
-        prebuild = { },
+        _prebuild = { },
         options = options or {
             always_run = false
         }
@@ -83,20 +83,24 @@ end
 ---@param action Action
 ---@return Step
 function Step:pre(action)
-    table.insert(self.prebuild, action)
+    table.insert(self._prebuild, action)
     return self
 end
 
 ---@nodiscard
 ---@return string?
 function Step:build()
-    for _, prebuild in ipairs(self.prebuild) do
-        local err = self:execute_action(prebuild)
-        if err then return err end
-    end
-
     for _, action in ipairs(self.actions) do
         local err = self:execute_action(action)
+        if err then return err end
+    end
+end
+
+---@nodiscard
+---@return string?
+function Step:prebuild()
+    for _, _prebuild in ipairs(self._prebuild) do
+        local err = self:execute_action(_prebuild)
         if err then return err end
     end
 end
