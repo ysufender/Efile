@@ -19,7 +19,8 @@ local Step = {}
 ---@class Complex
 ---@field file string
 
----@alias Dependency Complex|string
+---@alias Dependency (Complex)|(string)|(DependencyList)
+---@alias DependencyList Dependency[]
 
 ---@param name    string
 ---@param options Options?
@@ -38,10 +39,37 @@ function Step.init(name, options)
     return obj
 end
 
----@param dependency Dependency
+---@param dependency string
 ---@return Step
-function Step:dependOn(dependency)
+function Step:dependOnStep(dependency)
     table.insert(self.dependencies, dependency)
+    return self
+end
+
+---@param files string[]
+---@return Step
+function Step:dependOnSteps(files)
+    for _, file in ipairs(files) do
+        table.insert(self.dependencies, file)
+    end
+
+    return self
+end
+
+---@param dependency string
+---@return Step
+function Step:dependOnFile(dependency)
+    table.insert(self.dependencies, { file = dependency })
+    return self
+end
+
+---@param files string[]
+---@return Step
+function Step:dependOnFiles(files)
+    for _, file in ipairs(files) do
+        table.insert(self.dependencies, { file = file })
+    end
+
     return self
 end
 

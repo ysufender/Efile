@@ -37,23 +37,25 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("bundle")
-        :dependOn({ file = "build.lua" })
-        :dependOn({ file = "efile/efile.lua" })
-        :dependOn({ file = "efile/build_system/project.lua" })
-        :dependOn({ file = "efile/build_system/step.lua" })
+        :dependOnFiles({
+            "build.lua",
+            "efile/efile.lua",
+            "efile/build_system/project.lua",
+            "efile/build_system/step.lua",
+        })
         :action(AMALG..AMALGFLAGS)
         :action(to_header))
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "efile/efile.c" })
-        :dependOn("bundle")
-        :action(CC..CFLAGS.."efile/efile.c -o build/efile -llua5.4 -lm -ldl"))
-        --:action(CC..CFLAGS.."efile/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
+        :dependOnFile("efile/efile.c")
+        :dependOnStep("bundle")
+        --:action(CC..CFLAGS.."efile/efile.c -o build/efile -l\"lua5.4\" -lm -ldl"))
+        :action(CC..CFLAGS.."efile/efile.c -o build/efile -llua -lm -ldl")) -- try this if above doesn't work
 
     :step(Efile.Step
         .init("install")
-        :dependOn("build")
+        :dependOnStep("build")
         :action("sudo install -m 755 build/efile /usr/local/bin/efile"))
 
     :step(Efile.Step

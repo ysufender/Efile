@@ -39,6 +39,19 @@ function Project.step(self, step)
 end
 
 ---@nodiscard
+---@param self  Project
+---@param steps Step[]
+---@return string|Project
+function Project.multiStep(self, steps)
+    for _, step in ipairs(steps) do
+        local err = self:step(step)
+        if type(err) == "string" then return err end
+    end
+
+    return self
+end
+
+---@nodiscard
 ---@param self string|Project
 ---@param target string
 ---@return string?
@@ -142,5 +155,7 @@ function Project:resolve(target, to_build, accumulator)
         ---@cast to_build table
         table.insert(to_build, target)
     end
+
+    accumulator[target] = nil
 end
 return Project

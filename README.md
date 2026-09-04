@@ -2,7 +2,7 @@
 
 > Note: EFILE IS NOT CROSSPLATFORM, IT DEPENDS ON UNIX SHELL UTILITIES
 
-Efile is a small alternative to Makefiles, written almost entirely in lua and a tiny bit of C.
+Efile is a small alternative to Makefiles, written almost entirely in Lua and a tiny bit of C.
 It has the similar structure of a TOML file, and the feel of a Lua script, since it is plain lua.
 
 Below is the stripped down version of the build script of Efile itself:
@@ -13,22 +13,24 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("bundle")
-        :dependOn({ file = "build.lua" })
-        :dependOn({ file = "src/efile.lua" })
-        :dependOn({ file = "src/build_system/project.lua" })
-        :dependOn({ file = "src/build_system/step.lua" })
+        :dependOnFiles({
+            "build.lua",
+            "efile/efile.lua",
+            "efile/build_system/project.lua",
+            "efile/build_system/step.lua",
+        })
         :action(AMALG..AMALGFLAGS)
         :action(to_header))
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "src/efile.c" })
-        :dependOn("bundle")
-        :action(CC..CFLAGS.."src/efile.c -o build/efile -llua5.4 -lm -ldl"))
+        :dependOnFile("efile/efile.c")
+        :dependOnStep("bundle")
+        :action(CC..CFLAGS.."efile/efile.c -o build/efile -l\"lua5.4\" -lm -ldl"))
 
     :step(Efile.Step
         .init("install")
-        :dependOn("build")
+        :dependOnStep("build")
         :action("sudo install -m 755 build/efile /usr/local/bin/efile"))
 
     :step(Efile.Step
@@ -45,9 +47,9 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("clean")
-        :action("rm -f efile efile_bundle.lua efile_bundle.h"))
+        :action("rm -rf build"))
 
-local result = Efile.Project.build(project, arg[1] or "build") or "Success"
+local result = project:build(arg[1] or "build") or "Success"
 print(result)
 ```
 
@@ -121,8 +123,9 @@ print(result)
 ```
 
 If you run this build file, the output will simply be `Success`, since our build step doesn't do anything
-notable, yet alone anything at all. We can add `actions` to the Step to make it a little more useful 
-like so:
+notable, yet alone anything at all. We can add `actions` to the Step to make it a little more useful.
+
+You can also add multiple steps at once using the `multiStep` method. We'll see that in the [Advanced Efile](#advanced-efile)
 
 #### Adding Actions To Steps
 
@@ -211,7 +214,7 @@ local project = Efile.Project
 A proper Efile should not do extra work when it doesn't have to do. For example if the build script has not
 changed, and that we don't depend on anything else, why run the build script?
 
-To add a file as a dependency, and cache its modification time, we use the `dependOn` method like so:
+To add a file as a dependency, and cache its modification time, we use the `dependOnFile` method like so:
 
 ```lua
 local project = Efile.Project
@@ -219,13 +222,29 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "build.lua" })
+        :dependOnFile("build.lua")
         :action("echo Hello World")
 ```
 
 Now if we run this for the first time, we'll see the `Hello World` message, but if we run a second time
 without touching the build script, we'll only see `Success`. And as usual, you can add as many file dependencies
-as you'd like by chaining `dependOn` calls.
+as you'd like by chaining `dependOnFile` calls.
+
+Alternatively, if you depend on many files, you can use the `dependOnFiles` method:
+
+```lua
+local project = Efile.Project
+    .init("First_Project")
+
+    :step(Efile.Step
+        .init("build")
+        :dependOnFiles({
+            "build.lua",
+            "otherfile.lua",
+            "yetanotherfile.lua"
+        })
+        :action("echo Hello World")
+```
 
 > Note: File dependencies are relative to the build script's base folder.
 
@@ -243,7 +262,7 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "test.lua" })
+        :dependOnFile("test.lua")
         :action("ls -la")
 ```
 
@@ -260,8 +279,28 @@ local project = Efile.Project
 
     :step(Efile.Step
         .init("build")
-        :dependOn({ file = "build.lua" })
-        :dependOn("generate")
+        :dependOnFile("build.lua")
+        :dependOnStep("generate")
+        :action("ls -la"))
+```
+
+If you have multiple dependencies of steps however, you can use `dependOnSteps` method:
+
+```lua
+local project = Efile.Project
+    .init("First_Project")
+
+    :step(Efile.Step
+        .init("gneerate")
+        :action("mkdir -p test_folder"))
+
+    :step(Efile.Step
+        .init("build")
+        :dependOnFile("build.lua")
+        :dependOnSteps({
+            "generate",
+            "someotherstep"
+        })
         :action("ls -la"))
 ```
 
@@ -269,6 +308,82 @@ If you now execute the build script, it will first create the folder and then ca
 
 If at least one of the dependencies is marked as `to_build` by the build system (depending on their own
 dependencies of both kinds), a Step is too marked as `to_build`.
+
+## Advanced Efile
+
+Since Efile is plain Lua, you can make up some pretty wild techniques. But I'll give a small one for
+example. Below is an Efile, that uses a function to generate necessary steps from a list of source files:
+
+```lua
+local Efile = require "efile.efile"
+
+local cc      = "gcc "
+local ld      = "gcc "
+local cflags  = "-Wall -Wextra -Werror -c "
+local ldflags = ""
+
+local csources = {
+    "main.c",
+    "file/at/subpath.c"
+}
+
+local function generate_ld_step(sources, output)
+    local object_files = ""
+
+    for _, source in ipairs(sources) do
+        local full_file_no_ext = string.match(source, "^(.+)%.[^%.]+$")
+        object_files = object_files..full_file_no_ext..".o "
+    end
+
+    return Efile.Step
+        .init("link")
+        :dependOnStep("compile")
+        :pre("mkdir -p build/bin/")
+        :action(ld..ldflags..object_files.." -o build/bin/"..output)
+end
+
+local function generate_cc_steps(sources)
+    local compile_step = Efile.Step.init("compile")
+    local steps = {}
+
+    for _, source in ipairs(sources) do
+        local base_file = string.match(source, "([^/]+)$")
+        local full_file_no_ext = string.match(source, "^(.+)%.[^%.]+$")
+
+        local new_step = Efile.Step
+            .init(base_file)
+            :dependOnFile(source)
+            :action(cc..cflags..source.." -o build/"..full_file_no_ext..".o")
+
+        table.insert(steps, new_step)
+        compile_step:dependOnStep(new_step.name)
+    end
+
+    table.insert(steps, compile_step)
+    return steps
+end
+
+local project = Efile.Project
+    .init("Test")
+    :multiStep(generate_cc_steps(csources))
+    :step(generate_ld_step(csources, "test"))
+
+for _, step in pairs(project.steps) do
+    print(step.name..": "..tostring(step.actions[1]))
+end
+```
+
+Should output something the sorts of:
+
+```bash
+main.c: gcc -Wall -Wextra -Werror -c main.c -o build/main.o
+link: gcc main.o file/at/subpath.o  -o build/bin/test
+compile: nil
+subpath.c: gcc -Wall -Wextra -Werror -c file/at/subpath.c -o build/file/at/subpath.o
+```
+
+Now if you want to add another source file, you just have to add it to the `csources` list. You can
+do something about the same for include directories, libraries and link directories as well.
 
 ## Building From the Source
 
